@@ -1,5 +1,7 @@
 module Parser
-    ( parseDataInfo
+    ( parseDataFile
+    , parseImports
+    , parseDataInfo
     , parseDataType
     , parseMemberName
     , parseDataTypeRef
@@ -7,24 +9,7 @@ module Parser
 
 import Control.Applicative
 import Text.Trifecta
-
-data Test =  String | Unit
-
-data MemberName = MemberName String deriving (Eq, Ord, Show)
-data MemberType = MemberType String deriving (Eq, Ord, Show)
-data DataTypeName = DataTypeName String deriving (Eq, Ord, Show)
-
-data DataTypeRef = DataTypeRef {
-      memberName :: MemberName
-    , memberType :: MemberType
-    } deriving (Eq, Ord, Show)
-
-data DataTypeExpr 
-    = SumExpr [MemberType]             -- data MySumType { A | B | C | ...}
-    | ProductExpr [DataTypeRef]        -- data MyProductType { a :: A, b :: B, ...}
-    deriving (Eq, Ord, Show)
-
-data DataTypeInfoExpr = DataTypeInfoExpr DataTypeName DataTypeExpr deriving (Eq, Ord, Show)
+import DataTypes
 
 parseMemberIdentifier :: Parser [Char]
 parseMemberIdentifier = do 
@@ -39,6 +24,9 @@ parseTypeNameIdentifier = do
     s <- many alphaNum
     _ <- spaces
     pure (l : s)
+
+parseNamespace :: Parser Namespace
+parseNamespace = Namespace <$> many (oneOf $ ['a'..'z'] ++ ['A'..'Z'] ++ "._")
 
 parseMemberName = MemberName <$> parseMemberIdentifier
 parseMemberType = MemberType <$> parseTypeNameIdentifier
@@ -58,5 +46,10 @@ parseDataType = parseProduct <|> parseSum
 
 parseDataInfo :: Parser DataTypeInfoExpr
 parseDataInfo = DataTypeInfoExpr <$> ((symbol "data") *> parseDataTypeName) <*> braces parseDataType
-    
+
+parseImports :: Parser [Namespace]
+parseImports = many (symbol "include" *> whiteSpace *> parseNamespace <* char ';' <* whiteSpace)
+
+parseDataFile :: Parser CodeGenTree
+parseDataFile = CodeGenTree <$> parseImports <* symbol "namespace" <*> parseNamespace <*> (braces parseDataInfo `sepBy` whiteSpace)
     
