@@ -45,11 +45,11 @@ parseDataType :: Parser DataTypeExpr
 parseDataType = parseProduct <|> parseSum
 
 parseDataInfo :: Parser DataTypeInfoExpr
-parseDataInfo = DataTypeInfoExpr <$> ((symbol "data") *> parseDataTypeName) <*> braces parseDataType
+parseDataInfo = DataTypeInfoExpr <$> ((symbol "data") *> parseDataTypeName) <*> braces parseDataType <* whiteSpace
 
 parseImports :: Parser [Namespace]
 parseImports = many (symbol "include" *> whiteSpace *> parseNamespace <* char ';' <* whiteSpace)
 
 parseDataFile :: Parser CodeGenTree
-parseDataFile = CodeGenTree <$> parseImports <* symbol "namespace" <*> parseNamespace <*> (braces parseDataInfo `sepBy` whiteSpace)
+parseDataFile = CodeGenTree <$> parseImports <* (symbol "namespace") <* whiteSpace <*> parseNamespace <* whiteSpace <*> (braces (many parseDataInfo))
     
