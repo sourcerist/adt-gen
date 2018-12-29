@@ -51,5 +51,5 @@ parseImports :: Parser [Namespace]
 parseImports = many (symbol "include" *> whiteSpace *> parseNamespace <* char ';' <* whiteSpace)
 
 parseDataFile :: Parser CodeGenTree
-parseDataFile = CodeGenTree <$> parseImports <* (symbol "namespace") <* whiteSpace <*> parseNamespace <* whiteSpace <*> (braces (many parseDataInfo))
+parseDataFile = CodeGenTree <$> parseImports <* (symbol "namespace") <* whiteSpace <*> parseNamespace <* whiteSpace <*> (braces (many parseDataInfo)) <* eof
     
