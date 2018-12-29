@@ -6,27 +6,25 @@ namespace AlgebraicDataTypes.Optics
 {
     public interface IGetter<S, A> : IFold<S, A>
     {
-        Func<S, A> Get();
+        Func<S, A> Get { get; }
         IGetter<S, B> ComposeWith<B>(IGetter<A, B> other);
     }
 
     public class Getter<S, A>: IGetter<S, A>
     {
-        private Func<S, A> _get;
-        public Getter(Func<S, A> get)
-        {
-            _get = get;
-        }
+        public Func<S, A> Get { get; }
 
-        public IGetter<S, B> ComposeWith<B>(IGetter<A, B> other) => Getter.Create(_get.ComposeWith(other.Get()));
+        Func<S, IEnumerable<A>> ToEnumerableOf => s => YieldSingle(s);
 
-        public IFold<S, B> ComposeWith<B>(IFold<A, B> other) => Fold.Create<S,B>(s => other.ToEnumerableOf()(_get(s)));
+        Func<S, IEnumerable<A>> IFold<S, A>.ToEnumerableOf => ToEnumerableOf;
 
-        public Func<S, A> Get() => _get;
+        public Getter(Func<S, A> get) => Get = get;
 
-        public Func<S, IEnumerable<A>> ToEnumerableOf() => YieldSingle;
+        public IGetter<S, B> ComposeWith<B>(IGetter<A, B> other) => Getter.Create(Get.ComposeWith(other.Get));
 
-        private IEnumerable<A> YieldSingle(S s) { yield return _get(s); }
+        public IFold<S, B> ComposeWith<B>(IFold<A, B> other) => Fold.Create<S,B>(s => other.ToEnumerableOf(Get(s)));
+
+        private IEnumerable<A> YieldSingle(S s) { yield return Get(s); }
     }
 
     public static class Getter

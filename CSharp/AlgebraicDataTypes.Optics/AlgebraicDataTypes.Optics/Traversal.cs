@@ -6,6 +6,7 @@ namespace AlgebraicDataTypes.Optics
 {
     public interface ITraversal<S, T, A, B> : IFold<S, A>, ISetter<S, T, A, B>
     {
+        ITraversal<S, T, C, D> ComposeWith<C, D>(ITraversal<A, B, C, D> other);
     }
 
     public class Traversal<S, T, A, B> : ITraversal<S, T, A, B>
@@ -22,8 +23,10 @@ namespace AlgebraicDataTypes.Optics
 
         public ISetter<S, T, C, D> ComposeWith<C, D>(ISetter<A, B, C, D> other) => _setter.ComposeWith(other);
 
+        public ITraversal<S, T, C, D> ComposeWith<C, D>(ITraversal<A, B, C, D> other) => new Traversal<S,T,C,D>(_fold.ComposeWith(other), _setter.ComposeWith(other));
+
         public Func<S, T> Over(Func<A, B> f) => _setter.Over(f);
 
-        public Func<S, IEnumerable<A>> ToEnumerableOf() => _fold.ToEnumerableOf();
+        Func<S, IEnumerable<A>> IFold<S, A>.ToEnumerableOf => s => _fold.ToEnumerableOf(s);
     }
 }
