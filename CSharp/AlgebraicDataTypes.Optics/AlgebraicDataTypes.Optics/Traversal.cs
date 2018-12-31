@@ -29,4 +29,9 @@ namespace AlgebraicDataTypes.Optics
 
         Func<S, IEnumerable<A>> IFold<S, A>.ToEnumerableOf => s => _fold.ToEnumerableOf(s);
     }
+
+    public static class Traversal
+    {
+        public static Traversal<S, T, A, B> Create<S, T, A, B>(IFold<S, A> fold, ISetter<S, T, A, B> setter) => new Traversal<S, T, A, B>(fold, setter);
+    }
 }

@@ -2,8 +2,10 @@ module DataTypes where
     
 
 data MemberName = MemberName String deriving (Eq, Ord, Show)
-data MemberType = MemberType String deriving (Eq, Ord, Show)
-data DataTypeName = DataTypeName String deriving (Eq, Ord, Show)
+data DataTypeName = DataTypeName {
+    name          :: String
+  , genericParams :: Maybe [DataTypeName]
+  } deriving (Eq, Ord, Show)
 data Namespace = Namespace String deriving (Eq, Ord, Show)
 
 data CodeGenTree = CodeGenTree {
@@ -14,11 +16,11 @@ data CodeGenTree = CodeGenTree {
 
 data DataTypeRef = DataTypeRef {
       memberName :: MemberName
-    , memberType :: MemberType
+    , memberType :: DataTypeName
     } deriving (Eq, Ord, Show)
 
 data DataTypeExpr 
-    = SumExpr [MemberType]             -- data MySumType { A | B | C | ...}
+    = SumExpr [DataTypeName]           -- data MySumType { A | B | C | ...}
     | ProductExpr [DataTypeRef]        -- data MyProductType { a :: A, b :: B, ...}
     deriving (Eq, Ord, Show)
 
