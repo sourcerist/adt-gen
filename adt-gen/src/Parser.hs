@@ -53,7 +53,7 @@ parseDataInfo :: Parser DataTypeInfoExpr
 parseDataInfo = DataTypeInfoExpr <$> ((symbol "data") *> parseDataTypeName) <*> braces parseDataType <* whiteSpace
 
 parseImports :: Parser [Namespace]
-parseImports = many (symbol "include" *> whiteSpace *> parseNamespace <* char ';' <* whiteSpace)
+parseImports = many (symbol "using" *> whiteSpace *> parseNamespace <* char ';' <* whiteSpace)
 
 parseDataFile :: Parser CodeGenTree
 parseDataFile = CodeGenTree <$> parseImports <* (symbol "namespace") <* whiteSpace <*> parseNamespace <* whiteSpace <*> (braces (many parseDataInfo)) <* eof
