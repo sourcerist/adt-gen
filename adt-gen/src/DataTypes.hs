@@ -1,5 +1,4 @@
 module DataTypes where
-    
 
 data MemberName = MemberName String deriving (Eq, Ord, Show)
 data DataTypeName = DataTypeName {

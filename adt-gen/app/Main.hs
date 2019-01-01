@@ -13,7 +13,7 @@ lumpy arg = do
   r <- parseFromFile parseDataFile arg
   case r of
     Nothing -> return ()
-    Just rs -> print rs
+    Just rs -> putStrLn $ evalCodeGenTree rs
 
 main :: IO ()
 main = mapM_ lumpy =<< getArgs
