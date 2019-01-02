@@ -1,0 +1,9 @@
+using System;
+using System.Collections.Generic;
+using AlgebraicDataTypes.Optics;
+
+namespace AlgebraicDataTypes.Optics.UnitTest {
+	data ProductType1 { myString :: String, myInt :: Int32, myDouble :: Double }
+	data SumType1 { ProductType1 | Queue<Stack<Int32>> }
+}
+

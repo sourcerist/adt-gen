@@ -81,7 +81,23 @@ codeGenDataTypeRef (DataTypeInfoExpr dName exprType) indent =
                     nextIndent ++ "public static ISetter<S,T, " ++ typeFor d ++ ", " ++ typeFor d ++ "> " ++ mName d ++ "<S,T>(this ISetter<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n" ++
                     nextIndent ++ "public static IGetter<S, " ++ typeFor d ++ "> " ++ mName d ++ "<S>(this IGetter<S, " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n" ++
                     nextIndent ++ "public static IFold<S, " ++ typeFor d ++ "> " ++ mName d ++ "<S>(this IFold<S, " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n"
-        opticsExtensions (SumExpr dataTypeNames) = ""
+        opticsExtensions (SumExpr dataTypeNames) = 
+            intercalate "\n" (map memberPrism dataTypeNames)
+            where 
+                prismName x = dataTypeNameFlattenGenerics x ++ "Prism"
+                s = dataTypeName dName
+                eitherName d = "Either<" ++ dataTypeName dName ++ ", " ++ dataTypeName d ++ ">"
+                memberPrism :: DataTypeName -> String
+                memberPrism d = 
+                    nextIndent ++ "public static Prism<" ++ s ++ ", " ++ s ++ ", " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ prismName d ++ " = Prism.Create<" ++ s ++ ", " ++ s ++ ", " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ ">(\n" ++
+                    nextIndent2 ++ "b => " ++ s ++ ".Create(b),\n" ++
+                    nextIndent2 ++ "s => { if (s is " ++ s ++ "._" ++ dataTypeNameFlattenGenerics d ++ " a) return new " ++ eitherName d ++ ".Right(a.Value); else return new " ++ eitherName d ++ ".Left(s); });" ++
+                    nextIndent ++ "public static IPrism<S,T, " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ dataTypeNameFlattenGenerics d ++ "<S,T>(this IPrism<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");\n" ++
+                    nextIndent ++ "public static ITraversal<S,T, " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ dataTypeNameFlattenGenerics d ++ "<S,T>(this ITraversal<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");\n" ++
+                    ""
+                    --nextIndent ++ "public static ISetter<S,T, " ++ typeFor d ++ ", " ++ typeFor d ++ "> " ++ mName d ++ "<S,T>(this ISetter<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n" ++
+                    --nextIndent ++ "public static IGetter<S, " ++ typeFor d ++ "> " ++ mName d ++ "<S>(this IGetter<S, " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n" ++
+                    --nextIndent ++ "public static IFold<S, " ++ typeFor d ++ "> " ++ mName d ++ "<S>(this IFold<S, " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n"
 
 namespaceString :: Namespace -> String
 namespaceString (Namespace ns) = ns
