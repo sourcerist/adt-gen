@@ -34,6 +34,6 @@ namespace AlgebraicDataTypes.Optics
 
     public static class Lens
     {
-
+        public static Lens<S, T, A, B> Create<S, T, A, B>(Func<S, A> getterFunc, Func<Func<A, B>, S, T> setterFunc) => new Lens<S, T, A, B>(Getter.Create(getterFunc), Setter.Create(setterFunc));
     }
 }
