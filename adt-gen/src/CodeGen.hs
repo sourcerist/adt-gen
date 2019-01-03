@@ -9,7 +9,8 @@ import Control.Lens
 
 dataTypeName :: DataTypeName -> String
 dataTypeName d = d^.name ++ d ^.genericParams ^.to concat ^.to showGenerics where 
-    showGenerics x ='<' : x ^.to (map dataTypeName) ^.to (intercalate ", ") ++ ">"
+    showGenerics x@(h:t) ='<' : x ^.to (map dataTypeName) ^.to (intercalate ", ") ++ ">"
+    showGenerics _ = ""
 
 dataTypeNameFlattenGenerics :: DataTypeName -> String
 dataTypeNameFlattenGenerics d = filter noAngles (dataTypeName d)
