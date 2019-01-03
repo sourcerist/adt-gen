@@ -1,21 +1,27 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module DataTypes where
 
-data MemberName = MemberName String deriving (Eq, Ord, Show)
+import Control.Lens
+
+newtype MemberName = MemberName String deriving (Eq, Ord, Show)
+
 data DataTypeName = DataTypeName {
-    name          :: String
-  , genericParams :: Maybe [DataTypeName]
+    _name          :: String
+  , _genericParams :: Maybe [DataTypeName]
   } deriving (Eq, Ord, Show)
-data Namespace = Namespace String deriving (Eq, Ord, Show)
+  
+newtype Namespace = Namespace String deriving (Eq, Ord, Show)
 
 data CodeGenTree = CodeGenTree {
-      imports   :: [Namespace]
-    , namespace :: Namespace
-    , dataTypes :: [DataTypeInfoExpr]
+      _imports   :: [Namespace]
+    , _namespace :: Namespace
+    , _dataTypes :: [DataTypeInfoExpr]
     } deriving (Eq, Ord, Show)
 
 data DataTypeRef = DataTypeRef {
-      memberName :: MemberName
-    , memberType :: DataTypeName
+      _memberName :: MemberName
+    , _memberType :: DataTypeName
     } deriving (Eq, Ord, Show)
 
 data DataTypeExpr 
@@ -24,3 +30,9 @@ data DataTypeExpr
     deriving (Eq, Ord, Show)
 
 data DataTypeInfoExpr = DataTypeInfoExpr DataTypeName DataTypeExpr deriving (Eq, Ord, Show)
+
+makeLenses ''DataTypeName
+makeLenses ''CodeGenTree
+makeLenses ''DataTypeRef
+makeLenses ''DataTypeExpr
+makeLenses ''DataTypeInfoExpr

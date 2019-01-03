@@ -1,23 +1,19 @@
-module CodeGen (test, dataTypeName, codeGenDataTypeRef, evalCodeGenTree) where
+{-# LANGUAGE TemplateHaskell #-}
+
+module CodeGen (dataTypeName, codeGenDataTypeRef, evalCodeGenTree) where
 
 import DataTypes
 import Data.List
 import Data.Char
-
-test = "asdf"
+import Control.Lens
 
 dataTypeName :: DataTypeName -> String
-dataTypeName d = (name d) ++ showGenerics (genericParams d) where 
-    showGenerics :: Maybe [DataTypeName] -> String
-    showGenerics (Just x) = '<' : (intercalate ", " (map dataTypeName x)) ++ ">"
-    showGenerics _ = ""
+dataTypeName d = d^.name ++ d ^.genericParams ^.to concat ^.to showGenerics where 
+    showGenerics x ='<' : x ^.to (map dataTypeName) ^.to (intercalate ", ") ++ ">"
 
 dataTypeNameFlattenGenerics :: DataTypeName -> String
 dataTypeNameFlattenGenerics d = filter noAngles (dataTypeName d)
     where noAngles c = (c /= '<') && (c /= '>')
-
-memberNameString :: MemberName -> String
-memberNameString (MemberName ms) = ms
 
 mapFirst :: (a -> a) -> [a] -> [a]
 mapFirst f s = f (head s) : tail s
@@ -48,10 +44,10 @@ codeGenDataTypeRef (DataTypeInfoExpr dName exprType) indent =
             nextIndent ++ "public " ++ dataTypeName dName ++ "(" ++ dParams1 ++ ") => (" ++ declNamesCommaDelim ++ ") = (" ++ dParams2 ++ ");\n"
             where 
                 declLine :: DataTypeRef -> String
-                declLine d = nextIndent ++ "public " ++ dataTypeName (memberType d) ++ " " ++ (upperCamelCase . memberNameString . memberName) d ++ "{ get; }"
-                dParams1 = intercalate ", " $ map (\dr -> (dataTypeName . memberType) dr ++ " " ++ (lowerCamelCase . memberNameString . memberName) dr) dataRefs
-                dParams2 = intercalate ", " $ map (lowerCamelCase . memberNameString . memberName) dataRefs
-                declNamesCommaDelim = intercalate ", " $ map (upperCamelCase . memberNameString . memberName) dataRefs
+                declLine d = nextIndent ++ "public " ++ d^.memberType^.to dataTypeName ++ " " ++ d^.memberName^.coerced^.to upperCamelCase ++ "{ get; }"
+                dParams1 = intercalate ", " $ map (\dr -> dr^.memberType^.to dataTypeName ++ " " ++ dr^.memberName^.coerced^.to lowerCamelCase) dataRefs
+                dParams2 = intercalate ", " $ map (\dr -> dr^.memberName^.coerced^.to lowerCamelCase) dataRefs
+                declNamesCommaDelim = intercalate ", " $ map (\dr -> dr^.memberName^.coerced^.to upperCamelCase) dataRefs
         contents (SumExpr dataTypeNames) =
             intercalate "\n" (map derivedClass dataTypeNames)
             where 
@@ -68,10 +64,10 @@ codeGenDataTypeRef (DataTypeInfoExpr dName exprType) indent =
         opticsExtensions (ProductExpr dataRefs) = 
             intercalate "\n" (map memberOptics dataRefs)
             where 
-                mName = (upperCamelCase . memberNameString . memberName)
+                mName dr = dr^.memberName^.coerced^.to upperCamelCase
                 lensName x = mName x ++ "Lens"
                 s = dataTypeName dName
-                typeFor = (dataTypeName . memberType)
+                typeFor d = d^.memberType^.to dataTypeName
                 altConstructor d = "new " ++ s ++ "(" ++ intercalate ", " (map (\x -> if x == d then "s2a(s." ++ mName x ++ ")" else "s." ++ mName x) dataRefs) ++ ")"
                 memberOptics :: DataTypeRef -> String
                 memberOptics d =
@@ -93,23 +89,16 @@ codeGenDataTypeRef (DataTypeInfoExpr dName exprType) indent =
                     nextIndent2 ++ "b => " ++ s ++ ".Create(b),\n" ++
                     nextIndent2 ++ "s => { if (s is " ++ s ++ "._" ++ dataTypeNameFlattenGenerics d ++ " a) return new " ++ eitherName d ++ ".Right(a.Value); else return new " ++ eitherName d ++ ".Left(s); });" ++
                     nextIndent ++ "public static IPrism<S,T, " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ dataTypeNameFlattenGenerics d ++ "<S,T>(this IPrism<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");\n" ++
-                    nextIndent ++ "public static ITraversal<S,T, " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ dataTypeNameFlattenGenerics d ++ "<S,T>(this ITraversal<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");\n" ++
-                    ""
-                    --nextIndent ++ "public static ISetter<S,T, " ++ typeFor d ++ ", " ++ typeFor d ++ "> " ++ mName d ++ "<S,T>(this ISetter<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n" ++
-                    --nextIndent ++ "public static IGetter<S, " ++ typeFor d ++ "> " ++ mName d ++ "<S>(this IGetter<S, " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n" ++
-                    --nextIndent ++ "public static IFold<S, " ++ typeFor d ++ "> " ++ mName d ++ "<S>(this IFold<S, " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n"
-
-namespaceString :: Namespace -> String
-namespaceString (Namespace ns) = ns
-
+                    nextIndent ++ "public static ITraversal<S,T, " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ dataTypeNameFlattenGenerics d ++ "<S,T>(this ITraversal<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");\n"
+                    
 importNamespaces :: [Namespace] -> String
-importNamespaces n = intercalate "\n" $ map (\ns -> "using " ++ namespaceString ns ++ ";") n
+importNamespaces n = intercalate "\n" $ map (\ns -> "using " ++ ns^.coerced ++ ";") n
         
 evalCodeGenTree :: CodeGenTree -> String
 evalCodeGenTree tree =
-    importNamespaces (imports tree) ++ "\n\n" ++
-    "namespace " ++ namespaceString (namespace tree) ++ "\n" ++
+    tree^.imports^.to importNamespaces ++ "\n\n" ++
+    "namespace " ++ tree^.namespace^.coerced ++ "\n" ++
     "{\n" ++
     intercalate "\n\n" classes ++
     "}\n" where
-        classes = map (\x -> codeGenDataTypeRef x "\t") (dataTypes tree) 
+        classes = map (\x -> codeGenDataTypeRef x "\t") (_dataTypes tree) 
