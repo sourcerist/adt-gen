@@ -6,6 +6,10 @@ import DataTypes
 import Data.List
 import Data.Char
 import Control.Lens
+import Text.Printf
+
+data Line = Line { _indent :: String, _text :: [String] }
+makeLenses ''Line
 
 dataTypeName :: DataTypeName -> String
 dataTypeName d = d^.name ++ d ^.genericParams ^.to concat ^.to showGenerics where 
@@ -25,81 +29,94 @@ lowerCamelCase = mapFirst toLower
 upperCamelCase :: String -> String
 upperCamelCase = mapFirst toUpper
 
-codeGenDataTypeRef :: DataTypeInfoExpr -> String -> String
+codeGenDataTypeRef :: DataTypeInfoExpr -> String -> [Line]
 codeGenDataTypeRef (DataTypeInfoExpr dName exprType) indent = 
-    indent ++ "public partial class " ++ dataTypeName dName ++ "\n" ++
-    indent ++ "{\n" ++ 
-    contents exprType ++ "\n" ++ idLens ++ 
-    indent ++ "}\n\n" ++ 
-    indent ++ "public static partial class " ++ dataTypeName dName ++ "Optics\n" ++
-    indent ++ "{\n" ++ 
+    [Line indent [
+        printf "public partial class %s" $ dataTypeName dName,
+        "{"]] ++
+    intersperse emptyLine (contents exprType) ++
+    [Line indent $[
+        printf "public static partial class %sOptics" $ dataTypeName dName,
+        "{" ]] ++
     opticsExtensions exprType ++
-    indent ++ "}\n"
-    where 
+    [Line indent [
+        "}"]]
+    where
+        emptyLine = Line "" [""]
         idLensParams = intercalate ", " $ (take 4 . repeat . dataTypeName) dName
-        idLens = nextIndent ++ "public static AlgebraicDataTypes.Optics.Lens<" ++ idLensParams ++ "> Id { get; } = AlgebraicDataTypes.Optics.Lens.Create<" ++ idLensParams ++ ">(s => s, (a2b,s) => a2b(s));\n"
+        idLens = printf "public static AlgebraicDataTypes.Optics.Lens<%s> Id { get; } = AlgebraicDataTypes.Optics.Lens.Create<%s>(s => s, (a2b,s) => a2b(s));" idLensParams idLensParams 
         nextIndent = (head indent) : indent
         nextIndent2 = (head nextIndent) : nextIndent
-        contents (ProductExpr dataRefs) =
-            intercalate "\n" (map declLine dataRefs) ++ "\n\n" ++
-            nextIndent ++ "public " ++ dataTypeName dName ++ "(" ++ dParams1 ++ ") => (" ++ declNamesCommaDelim ++ ") = (" ++ dParams2 ++ ");\n"
+        contents :: DataTypeExpr -> [Line]
+        contents (ProductExpr dataRefs) = [
+            Line nextIndent $ idLens : map declLine dataRefs,
+            Line nextIndent [printf "public %s(%s) => (%s) = (%s);" (dataTypeName dName) dParams1 declNamesCommaDelim dParams2]]
             where 
-                declLine :: DataTypeRef -> String
-                declLine d = nextIndent ++ "public " ++ d^.memberType^.to dataTypeName ++ " " ++ d^.memberName^.coerced^.to upperCamelCase ++ "{ get; }"
+                declLine d = "public " ++ d^.memberType^.to dataTypeName ++ " " ++ d^.memberName^.coerced^.to upperCamelCase ++ "{ get; }"
                 dParams1 = intercalate ", " $ map (\dr -> dr^.memberType^.to dataTypeName ++ " " ++ dr^.memberName^.coerced^.to lowerCamelCase) dataRefs
                 dParams2 = intercalate ", " $ map (\dr -> dr^.memberName^.coerced^.to lowerCamelCase) dataRefs
                 declNamesCommaDelim = intercalate ", " $ map (\dr -> dr^.memberName^.coerced^.to upperCamelCase) dataRefs
-        contents (SumExpr dataTypeNames) =
-            intercalate "\n" (map derivedClass dataTypeNames)
+        contents (SumExpr dataTypeNames) = foldl (++) [] (map derivedClass dataTypeNames)
             where 
-                derivedClass :: DataTypeName -> String
-                derivedClass d = 
-                    nextIndent ++ "public virtual bool Is" ++ dataTypeNameFlattenGenerics d ++ " { get => false; }\n" ++
-                    nextIndent ++ "public static _" ++ dataTypeNameFlattenGenerics d ++ " Create(" ++ dataTypeName d ++ " val) => new _" ++ dataTypeNameFlattenGenerics d ++ "(val);\n" ++ 
-                    nextIndent ++ "public partial class _" ++ dataTypeNameFlattenGenerics d ++ " : " ++ dataTypeName dName ++ "\n" ++
-                    nextIndent ++ "{\n" ++
-                    nextIndent2 ++ "public " ++ dataTypeName d ++ " Value { get; }\n" ++
-                    nextIndent2 ++ "public _" ++ dataTypeNameFlattenGenerics d ++ "(" ++ dataTypeName d ++ " value) => Value = value;\n" ++
-                    nextIndent2 ++ "public override bool Is" ++ dataTypeNameFlattenGenerics d ++ " { get => true; }\n" ++
-                    nextIndent ++ "}\n" 
-        opticsExtensions (ProductExpr dataRefs) = 
-            intercalate "\n" (map memberOptics dataRefs)
+                derivedClass :: DataTypeName -> [Line]
+                derivedClass d = [
+                    Line nextIndent [
+                     "public virtual bool Is" ++ dataTypeNameFlattenGenerics d ++ " { get => false; }",
+                     "public static _" ++ dataTypeNameFlattenGenerics d ++ " Create(" ++ dataTypeName d ++ " val) => new _" ++ dataTypeNameFlattenGenerics d ++ "(val);\n",
+                     "public partial class _" ++ dataTypeNameFlattenGenerics d ++ " : " ++ dataTypeName dName,
+                     "{"],
+                    Line nextIndent2 [
+                        "public " ++ dataTypeName d ++ " Value { get; }",
+                        "public _" ++ dataTypeNameFlattenGenerics d ++ "(" ++ dataTypeName d ++ " value) => Value = value;\n",
+                        "public override bool Is" ++ dataTypeNameFlattenGenerics d ++ " { get => true; }\n"],
+                    Line nextIndent [
+                     "}"]]  
+        opticsExtensions :: DataTypeExpr -> [Line]
+        opticsExtensions (ProductExpr dataRefs) = [Line nextIndent $ concat $ map memberOptics dataRefs]
             where 
                 mName dr = dr^.memberName^.coerced^.to upperCamelCase
                 lensName x = mName x ++ "Lens"
                 s = dataTypeName dName
                 typeFor d = d^.memberType^.to dataTypeName
                 altConstructor d = "new " ++ s ++ "(" ++ intercalate ", " (map (\x -> if x == d then "s2a(s." ++ mName x ++ ")" else "s." ++ mName x) dataRefs) ++ ")"
-                memberOptics :: DataTypeRef -> String
-                memberOptics d =
-                    nextIndent ++ "public static Lens<" ++ s ++ ", " ++ s ++ ", " ++ typeFor d ++ ", " ++ typeFor d ++ "> " ++ lensName d ++ " = Lens.Create<" ++ s ++ ", " ++ s ++ ", " ++ typeFor d ++ ", " ++ typeFor d ++ ">(s => s." ++ mName d ++ ", (s2a, s) => " ++ altConstructor d ++ ");\n" ++
-                    nextIndent ++ "public static ILens<S,T, " ++ typeFor d ++ ", " ++ typeFor d ++ "> " ++ mName d ++ "<S,T>(this ILens<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n" ++
-                    nextIndent ++ "public static ITraversal<S,T, " ++ typeFor d ++ ", " ++ typeFor d ++ "> " ++ mName d ++ "<S,T>(this ITraversal<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n" ++
-                    nextIndent ++ "public static ISetter<S,T, " ++ typeFor d ++ ", " ++ typeFor d ++ "> " ++ mName d ++ "<S,T>(this ISetter<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n" ++
-                    nextIndent ++ "public static IGetter<S, " ++ typeFor d ++ "> " ++ mName d ++ "<S>(this IGetter<S, " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n" ++
-                    nextIndent ++ "public static IFold<S, " ++ typeFor d ++ "> " ++ mName d ++ "<S>(this IFold<S, " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");\n"
-        opticsExtensions (SumExpr dataTypeNames) = 
-            intercalate "\n" (map memberPrism dataTypeNames)
+                memberOptics d = [
+                    "public static Lens<" ++ s ++ ", " ++ s ++ ", " ++ typeFor d ++ ", " ++ typeFor d ++ "> " ++ lensName d ++ " = Lens.Create<" ++ s ++ ", " ++ s ++ ", " ++ typeFor d ++ ", " ++ typeFor d ++ ">(s => s." ++ mName d ++ ", (s2a, s) => " ++ altConstructor d ++ ");",
+                    "public static ILens<S,T, " ++ typeFor d ++ ", " ++ typeFor d ++ "> " ++ mName d ++ "<S,T>(this ILens<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");",
+                    "public static ITraversal<S,T, " ++ typeFor d ++ ", " ++ typeFor d ++ "> " ++ mName d ++ "<S,T>(this ITraversal<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");",
+                    "public static ISetter<S,T, " ++ typeFor d ++ ", " ++ typeFor d ++ "> " ++ mName d ++ "<S,T>(this ISetter<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");",
+                    "public static IGetter<S, " ++ typeFor d ++ "> " ++ mName d ++ "<S>(this IGetter<S, " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");",
+                    "public static IFold<S, " ++ typeFor d ++ "> " ++ mName d ++ "<S>(this IFold<S, " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");"]
+        opticsExtensions (SumExpr dataTypeNames) = concat $ map memberPrism dataTypeNames
             where 
                 prismName x = dataTypeNameFlattenGenerics x ++ "Prism"
                 s = dataTypeName dName
                 eitherName d = "Either<" ++ dataTypeName dName ++ ", " ++ dataTypeName d ++ ">"
-                memberPrism :: DataTypeName -> String
-                memberPrism d = 
-                    nextIndent ++ "public static Prism<" ++ s ++ ", " ++ s ++ ", " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ prismName d ++ " = Prism.Create<" ++ s ++ ", " ++ s ++ ", " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ ">(\n" ++
-                    nextIndent2 ++ "b => " ++ s ++ ".Create(b),\n" ++
-                    nextIndent2 ++ "s => { if (s is " ++ s ++ "._" ++ dataTypeNameFlattenGenerics d ++ " a) return new " ++ eitherName d ++ ".Right(a.Value); else return new " ++ eitherName d ++ ".Left(s); });" ++
-                    nextIndent ++ "public static IPrism<S,T, " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ dataTypeNameFlattenGenerics d ++ "<S,T>(this IPrism<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");\n" ++
-                    nextIndent ++ "public static ITraversal<S,T, " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ dataTypeNameFlattenGenerics d ++ "<S,T>(this ITraversal<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");\n"
-                    
-importNamespaces :: [Namespace] -> String
-importNamespaces n = intercalate "\n" $ map (\ns -> "using " ++ ns^.coerced ++ ";") n
+                memberPrism d = [
+                    Line nextIndent  ["public static Prism<" ++ s ++ ", " ++ s ++ ", " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ prismName d ++ " = Prism.Create<" ++ s ++ ", " ++ s ++ ", " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ ">("],
+                    Line nextIndent2 ["b => " ++ s ++ ".Create(b),\n",
+                                      "s => { if (s is " ++ s ++ "._" ++ dataTypeNameFlattenGenerics d ++ " a) return new " ++ eitherName d ++ ".Right(a.Value); else return new " ++ eitherName d ++ ".Left(s); });",
+                                      "public static IPrism<S,T, " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ dataTypeNameFlattenGenerics d ++ "<S,T>(this IPrism<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");",
+                                      "public static ITraversal<S,T, " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ dataTypeNameFlattenGenerics d ++ "<S,T>(this ITraversal<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");"]]
+
+importNamespaces :: [Namespace] -> Line
+importNamespaces n = Line "" $ map (\ns -> "using " ++ ns^.coerced ++ ";") n
         
+getCodeGenTreeLines :: CodeGenTree -> [Line]
+getCodeGenTreeLines tree = [
+    tree^.imports^.to importNamespaces,
+    Line "" [
+        "namespace " ++ tree^.namespace^.coerced,
+        "{"]] ++
+    intersperse emptyLine classes ++
+    [Line "" ["}"]]
+    where
+        emptyLine = Line "" [""]
+        classes = concat $ map (\x -> codeGenDataTypeRef x "\t") $ tree^.dataTypes
+
+linesToString :: [Line] -> String
+linesToString ls = intercalate "\n" $ map lineToString ls where 
+    lineToString :: Line -> String
+    lineToString l = intercalate "\n" $ map (l^.indent ++) $ l^.text
+
 evalCodeGenTree :: CodeGenTree -> String
-evalCodeGenTree tree =
-    tree^.imports^.to importNamespaces ++ "\n\n" ++
-    "namespace " ++ tree^.namespace^.coerced ++ "\n" ++
-    "{\n" ++
-    intercalate "\n\n" classes ++
-    "}\n" where
-        classes = map (\x -> codeGenDataTypeRef x "\t") (_dataTypes tree) 
+evalCodeGenTree = linesToString . getCodeGenTreeLines 
