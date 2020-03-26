@@ -62,19 +62,19 @@ codeGenDataTypeRef (DataTypeInfoExpr dName exprType) indent =
                 dParams1 = intercalate ", " $ map (\dr -> dr^.memberType^.to dataTypeName ++ " " ++ dr^.memberName^.coerced^.to lowerCamelCase) dataRefs
                 dParams2 = intercalate ", " $ map (\dr -> dr^.memberName^.coerced^.to lowerCamelCase) dataRefs
                 declNamesCommaDelim = intercalate ", " $ map (\dr -> dr^.memberName^.coerced^.to upperCamelCase) dataRefs
-        contents (SumExpr dataTypeNames) = concat $ intersperse [emptyLine] $ map derivedClass dataTypeNames
+        contents (SumExpr dataRefs) = concat $ intersperse [emptyLine] $ map derivedClass dataRefs
             where 
-                derivedClass :: DataTypeName -> [Line]
+                derivedClass :: DataTypeRef -> [Line]
                 derivedClass d = [
                     Line nextIndent [
-                     "public virtual bool Is" ++ dataTypeNameFlattenGenerics d ++ " { get => false; }",
-                     "public static _" ++ dataTypeNameFlattenGenerics d ++ " Create(" ++ dataTypeName d ++ " val) => new _" ++ dataTypeNameFlattenGenerics d ++ "(val);",
-                     "public partial class _" ++ dataTypeNameFlattenGenerics d ++ " : " ++ dataTypeName dName,
+                     "public virtual bool Is" ++ (d^.memberName^.coerced) ++ " { get => false; }",
+                     "public static _" ++ (d^.memberName^.coerced) ++ " Create" ++ (d^.memberName^.coerced) ++ "(" ++ dataTypeName (d^.memberType^.coerced) ++ " val) => new _" ++ (d^.memberName^.coerced) ++ "(val);",
+                     "public partial class _" ++ (d^.memberName^.coerced) ++ " : " ++ dataTypeName dName,
                      "{"],
                     Line nextIndent2 [
-                        "public " ++ dataTypeName d ++ " Value { get; }",
-                        "public _" ++ dataTypeNameFlattenGenerics d ++ "(" ++ dataTypeName d ++ " value) => Value = value;",
-                        "public override bool Is" ++ dataTypeNameFlattenGenerics d ++ " { get => true; }"],
+                        "public " ++ dataTypeName (d^.memberType) ++ " Value { get; }",
+                        "public _" ++ (d^.memberName^.coerced) ++ "(" ++ dataTypeName (d^.memberType) ++ " value) => Value = value;",
+                        "public override bool Is" ++ (d^.memberName^.coerced) ++ " { get => true; }"],
                     Line nextIndent [
                      "}"]]  
         opticsExtensions :: DataTypeExpr -> [Line]
@@ -92,17 +92,17 @@ codeGenDataTypeRef (DataTypeInfoExpr dName exprType) indent =
                     "public static ISetter<S,T, " ++ typeFor d ++ ", " ++ typeFor d ++ "> " ++ mName d ++ "<S,T>(this ISetter<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");",
                     "public static IGetter<S, " ++ typeFor d ++ "> " ++ mName d ++ "<S>(this IGetter<S, " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");",
                     "public static IFold<S, " ++ typeFor d ++ "> " ++ mName d ++ "<S>(this IFold<S, " ++ s ++ "> other) => other.ComposeWith(" ++ lensName d ++ ");"]
-        opticsExtensions (SumExpr dataTypeNames) = concat $ intersperse [emptyLine] $ map memberPrism dataTypeNames
+        opticsExtensions (SumExpr dataTypeRefs) = concat $ intersperse [emptyLine] $ map memberPrism dataTypeRefs
             where 
-                prismName x = dataTypeNameFlattenGenerics x ++ "Prism"
+                prismName d = (d^.memberName^.coerced) ++ "Prism"
                 s = dataTypeName dName
-                eitherName d = "Either<" ++ dataTypeName dName ++ ", " ++ dataTypeName d ++ ">"
+                eitherName d = "Either<" ++ dataTypeName dName ++ ", " ++ dataTypeName (d^.memberType) ++ ">"
                 memberPrism d = [
-                    Line nextIndent  ["public static Prism<" ++ s ++ ", " ++ s ++ ", " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ prismName d ++ " = Prism.Create<" ++ s ++ ", " ++ s ++ ", " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ ">("],
-                    Line nextIndent2 ["b => " ++ s ++ ".Create(b),",
-                                      "s => { if (s is " ++ s ++ "._" ++ dataTypeNameFlattenGenerics d ++ " a) return new " ++ eitherName d ++ ".Right(a.Value); else return new " ++ eitherName d ++ ".Left(s); });"],
-                    Line nextIndent  ["public static IPrism<S,T, " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ dataTypeNameFlattenGenerics d ++ "<S,T>(this IPrism<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");",
-                                      "public static ITraversal<S,T, " ++ dataTypeName d ++ ", " ++ dataTypeName d ++ "> " ++ dataTypeNameFlattenGenerics d ++ "<S,T>(this ITraversal<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");"]]
+                    Line nextIndent  ["public static Prism<" ++ s ++ ", " ++ s ++ ", " ++ dataTypeName (d^.memberType) ++ ", " ++ dataTypeName (d^.memberType) ++ "> " ++ prismName d ++ " = Prism.Create<" ++ s ++ ", " ++ s ++ ", " ++ dataTypeName (d^.memberType) ++ ", " ++ dataTypeName (d^.memberType) ++ ">("],
+                    Line nextIndent2 ["b => " ++ s ++ ".Create" ++ (d^.memberName^.coerced) ++ "(b),",
+                                      "s => { if (s is " ++ s ++ "._" ++ (d^.memberName^.coerced) ++ " a) return new " ++ eitherName d ++ ".Right(a.Value); else return new " ++ eitherName d ++ ".Left(s); });"],
+                    Line nextIndent  ["public static IPrism<S,T, " ++ dataTypeName (d^.memberType) ++ ", " ++ dataTypeName (d^.memberType) ++ "> " ++ (d^.memberName^.coerced) ++ "<S,T>(this IPrism<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");",
+                                      "public static ITraversal<S,T, " ++ dataTypeName (d^.memberType) ++ ", " ++ dataTypeName (d^.memberType) ++ "> " ++ (d^.memberName^.coerced) ++ "<S,T>(this ITraversal<S,T, " ++ s ++ ", " ++ s ++ "> other) => other.ComposeWith(" ++ prismName d ++ ");"]]
 
 importNamespaces :: [Namespace] -> Line
 importNamespaces n = Line "" $ map (\ns -> "using " ++ ns^.coerced ++ ";") n

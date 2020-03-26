@@ -20,10 +20,10 @@ parseMemberIdentifier = do
 
 parseTypeNameIdentifier :: Parser String
 parseTypeNameIdentifier = do 
-    l <- upper 
+    u <- upper 
     s <- many alphaNum
     _ <- spaces
-    pure (l : s)
+    pure (u : s)
 
 parseNamespace :: Parser Namespace
 parseNamespace = Namespace <$> many (oneOf $ ['a'..'z'] ++ ['A'..'Z'] ++ "._")
@@ -43,11 +43,23 @@ parseDataTypeRef = DataTypeRef <$> parseMemberName <* (symbol "::") <*> parseDat
 parseProduct :: Parser DataTypeExpr 
 parseProduct = ProductExpr <$> parseDataTypeRef `sepBy1` comma
 
+parseSumMember :: Parser DataTypeRef
+parseSumMember = do
+    name <- parseTypeNameIdentifier 
+    (symbol "::") 
+    dtName <- parseDataTypeName
+    pure (DataTypeRef (MemberName name) dtName)
+
+parseSimpleMember :: Parser DataTypeRef
+parseSimpleMember = do
+    name <- parseTypeNameIdentifier
+    pure (DataTypeRef (MemberName name) (DataTypeName "Unit" Nothing))
+
 parseSum :: Parser DataTypeExpr
-parseSum = SumExpr <$> parseDataTypeName `sepBy1` (symbol "|")
+parseSum = SumExpr <$> p `sepBy1` (symbol "|") where p = choice [try parseSumMember, parseSimpleMember]
 
 parseDataType :: Parser DataTypeExpr
-parseDataType = parseProduct <|> parseSum
+parseDataType = (try parseProduct) <|> parseSum
 
 parseDataInfo :: Parser DataTypeInfoExpr
 parseDataInfo = DataTypeInfoExpr <$> ((symbol "data") *> parseDataTypeName) <*> braces parseDataType <* whiteSpace

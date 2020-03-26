@@ -25,7 +25,7 @@ data DataTypeRef = DataTypeRef {
     } deriving (Eq, Ord, Show)
 
 data DataTypeExpr 
-    = SumExpr [DataTypeName]           -- data MySumType { A | B | C | ...}
+    = SumExpr [DataTypeRef]            -- data MySumType { A | B BType | C | ...}
     | ProductExpr [DataTypeRef]        -- data MyProductType { a :: A, b :: B, ...}
     deriving (Eq, Ord, Show)
 
